@@ -133,14 +133,42 @@ Number determinant(Matrix m)
 
 Matrix inverse(Matrix m)
 {
+  Matrix invalid;
+  invalid.rows = 0;
+  invalid.columns = 0;
+
+  if (m.rows != m.columns)
+    return invalid;
+
   Number d = determinant(m);
   if (d.magnitude == 0)
-  {
-    Matrix invalid;
-    invalid.rows = 0;
-    invalid.columns = 0;
     return invalid;
+
+  if (m.rows == 1)
+  {
+    Matrix result;
+    result.rows = 1;
+    result.columns = 1;
+    set(&result, 0, 0, divide(num_from_real_imaginary(1, 0), get(m, 0, 0)));
+    return result;
   }
-  Number one = num_from_real_imaginary(1, 0);
-  return const_multiply(divide(one, d), m);
+
+  Matrix adj;
+  adj.rows = m.rows;
+  adj.columns = m.columns;
+
+  for (int i = 0; i < m.rows; i++)
+  {
+    for (int j = 0; j < m.columns; j++)
+    {
+      Number cofactor = determinant(matrix_minor(m, i, j));
+
+      if ((i + j) % 2 == 1)
+        cofactor = multiply(cofactor, num_from_real_imaginary(-1, 0));
+
+      set(&adj, j, i, cofactor);
+    }
+  }
+
+  return const_multiply(divide(num_from_real_imaginary(1, 0), d), adj);
 }

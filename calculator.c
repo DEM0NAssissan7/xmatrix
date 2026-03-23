@@ -235,6 +235,25 @@ void append_to_series(struct Series *s, int index, struct Item *replacements, in
   }
 }
 
+void collapse_unary_minuses(struct Series *series)
+{
+  for (int i = 0; i < series->length - 1; i++)
+  {
+    if (series->items[i].type == OPERATION &&
+        series->items[i].opcode == SUBTRACT_OPCODE &&
+        series->items[i + 1].type == NUMBER &&
+        (i == 0 || series->items[i - 1].type == OPERATION))
+    {
+      struct Item replacement = series->items[i + 1];
+      Number negative_one = num_from_real_imaginary(-1, 0);
+      replacement.number = multiply(replacement.number, negative_one);
+
+      splice_series(series, i, i + 1, replacement);
+      i = -1; // restart scan
+    }
+  }
+}
+
 Number parse_series_arithmetic(struct Series *series)
 {
   // If the first element has a negative, we just replace the minus operation and number with a negative version of the number
@@ -249,6 +268,9 @@ Number parse_series_arithmetic(struct Series *series)
       splice_series(series, 0, 1, second_item);
     }
   }
+
+  collapse_unary_minuses(series);
+
   // Run through each operation one-by-one, find the one with the highest score + earliest index, and run + mutate in-memory
   int highest_score = -1;
   int score;

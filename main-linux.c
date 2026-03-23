@@ -3,6 +3,8 @@
 #include "matrix.h"
 #include "calculator.h"
 
+#define PI 3.14159265358979323846 /* pi */
+
 Matrix prompt_matrix(char *name)
 {
   Matrix m;
@@ -24,7 +26,6 @@ Matrix prompt_matrix(char *name)
       printf("%s[%d][%d] = ", name, i, j);
       fgets(input, sizeof(input), stdin);
 
-      // remove trailing newline
       input[strcspn(input, "\n")] = '\0';
 
       Number value = parse_string(input);
@@ -34,6 +35,7 @@ Matrix prompt_matrix(char *name)
 
   return m;
 }
+
 void print_matrix(Matrix m, char *name)
 {
   printf("%s =\n", name);
@@ -44,21 +46,15 @@ void print_matrix(Matrix m, char *name)
     {
       Number n = get(m, i, j);
 
-      if (n.imaginary == 0)
-      {
-        printf("%8.2f ", n.real);
-      }
-      else if (n.real == 0)
-      {
-        printf("%8.2fi ", n.imaginary);
-      }
-      else
-      {
-        printf("%8.2f%+.2fi ", n.real, n.imaginary);
-      }
+      printf("%8.2f%+.2fi<%.2f@%.2f°>", n.real, n.imaginary, n.magnitude, n.angle * (180 / PI));
     }
     printf("\n");
   }
+}
+
+int matrix_is_valid(Matrix m)
+{
+  return m.rows > 0 && m.columns > 0;
 }
 
 int main()
@@ -77,6 +73,8 @@ int main()
     printf("4. Determinant of B\n");
     printf("5. Re-enter A\n");
     printf("6. Re-enter B\n");
+    printf("7. Compute A^-1 * B\n");
+    printf("8. Compute A * B^-1\n");
     printf("0. Quit\n");
     printf("Choice: ");
 
@@ -131,6 +129,42 @@ int main()
     else if (choice == 6)
     {
       B = prompt_matrix("B");
+    }
+    else if (choice == 7)
+    {
+      Matrix A_inv = inverse(A);
+
+      if (!matrix_is_valid(A_inv))
+      {
+        printf("A is not invertible.\n");
+      }
+      else if (A_inv.columns != B.rows)
+      {
+        printf("Cannot multiply A^-1 * B: incompatible dimensions.\n");
+      }
+      else
+      {
+        Matrix C = matrix_multiply(A_inv, B);
+        print_matrix(C, "A^-1 * B");
+      }
+    }
+    else if (choice == 8)
+    {
+      Matrix B_inv = inverse(B);
+
+      if (!matrix_is_valid(B_inv))
+      {
+        printf("B is not invertible.\n");
+      }
+      else if (A.columns != B_inv.rows)
+      {
+        printf("Cannot multiply A * B^-1: incompatible dimensions.\n");
+      }
+      else
+      {
+        Matrix C = matrix_multiply(A, B_inv);
+        print_matrix(C, "A * B^-1");
+      }
     }
 
   } while (choice != 0);
