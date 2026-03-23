@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "matrix.h"
-#include "mathlib.h"
+#include "calculator.h"
 
 Matrix prompt_matrix(char *name)
 {

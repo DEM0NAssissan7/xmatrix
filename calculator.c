@@ -1,9 +1,29 @@
-#include "mathlib.h"
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
+
+#include "calculator.h"
 #include "number.h"
 
-#include <math.h>
-#include <stdlib.h> // For strtof and strtod
-#include <string.h>
+#define PI 3.14159265358979323846 /* pi */
+#define DEG_TO_RAD PI / 180
+
+#define NUMBER 0
+#define OPERATION 1
+
+#define INVALID_OPCODE -1
+#define ADD_OPCODE 0
+#define SUBTRACT_OPCODE 1
+#define MULTIPLY_OPCODE 2
+#define DIVIDE_OPCODE 3
+#define ANGLE_OPCODE 4
+
+// Parentheses
+#define OPEN_PARENTHESIS 10
+#define CLOSED_PARENTHESIS 11
+
+// Parsing
+#define DELIMITER ' '
 
 /**
  * All strings must be null-terminated, or else this will not work
@@ -110,7 +130,7 @@ Number execute(Number num1, Number num2, OPCode opcode)
   case DIVIDE_OPCODE:
     return divide(num1, num2);
   case ANGLE_OPCODE:
-    return num_from_mag_angle(num1.real, num2.real);
+    return num_from_mag_angle(num1.real, num2.real * DEG_TO_RAD);
   }
   return num_from_real_imaginary(0, 0); // Unreachable
 }
@@ -121,17 +141,15 @@ struct Series create_series(char *string)
   s.length = 0;
 
   int length = strlen(string);
-  char c;
-  char previous_c;
+  char c = DELIMITER;
+  char previous_c = DELIMITER;
   char str[MAX_NUMBER_LENGTH];
   int string_index = 0;
 
-  char is_end = 0;
-
   struct Item item;
   item.type = NUMBER; // Assume it's a number by default
-  OPCode previous_opcode;
-  OPCode opcode;
+  OPCode previous_opcode = INVALID_OPCODE;
+  OPCode opcode = INVALID_OPCODE;
   for (int i = 0; i <= length; i++)
   {
     previous_c = c;
@@ -144,10 +162,9 @@ struct Series create_series(char *string)
         continue; // Prevent working with blank strings
 
       str[string_index] = '\0'; // Null terminate before parsing
-      Number num = num_from_token(str);
 
       item.type = NUMBER;
-      item.number = num;
+      item.number = num_from_token(str);
       s.items[s.length] = item;
       s.length++;
 
@@ -170,12 +187,6 @@ struct Series create_series(char *string)
       item.opcode = opcode;
       s.items[s.length] = item;
       s.length++;
-    }
-
-    if (i == length - 1)
-    {
-      is_end = 1;
-      continue;
     }
   }
 
@@ -206,20 +217,130 @@ void splice_series(struct Series *s, int start_index, int end_index, struct Item
   }
 
   // We modify the length to fit the new one
-  s->length = s->length - end_index + start_index;
+  s->length -= end_index - start_index;
 }
 
-Number parse_series(struct Series series)
+void append_to_series(struct Series *s, int index, struct Item *replacements, int count)
+{
+  // Shift over elements
+  for (int i = s->length - 1; i >= index; i--)
+  {
+    s->items[i + count] = s->items[i];
+  }
+  s->length += count;
+
+  for (int i = 0; i < count; i++)
+  {
+    s->items[index + i] = replacements[i];
+  }
+}
+
+Number parse_series_arithmetic(struct Series *series)
+{
+  // If the first element has a negative, we just replace the minus operation and number with a negative version of the number
+  if (series->length >= 2)
+  {
+    struct Item first_item = series->items[0];
+    struct Item second_item = series->items[1];
+    if (first_item.type == OPERATION && first_item.opcode == SUBTRACT_OPCODE && second_item.type == NUMBER)
+    {
+      Number negative_one = num_from_real_imaginary(-1, 0);
+      second_item.number = multiply(second_item.number, negative_one);
+      splice_series(series, 0, 1, second_item);
+    }
+  }
+  // Run through each operation one-by-one, find the one with the highest score + earliest index, and run + mutate in-memory
+  int highest_score = -1;
+  int score;
+  int op_index = -1;
+  struct Item item;
+  while (series->length > 1) // We keep going until we only have a single item left in the series (i.e. the resulting number), then we return it
+  {
+    for (int i = 0; i < series->length; i++)
+    {
+      item = series->items[i];
+      if (item.type != OPERATION)
+        continue;
+      score = get_score(item.opcode);
+      if (score > highest_score)
+      {
+        highest_score = score;
+        op_index = i;
+      }
+    }
+
+    // If we have no operations left, we leave the while loop
+    if (op_index == -1)
+      break;
+
+    // We compute the operation
+    OPCode opcode = series->items[op_index].opcode;
+    Number num1 = series->items[op_index - 1].number;
+    Number num2 = series->items[op_index + 1].number;
+    item.type = NUMBER;
+    item.number = execute(num1, num2, opcode);
+    // We splice the result in place of the expression
+    splice_series(series, op_index - 1, op_index + 1, item);
+
+    // State adjustment
+    highest_score = -1; // Reset highest score
+    op_index = -1;      // Reset operation index
+  }
+
+  // Step 3: Return the final element of the series
+  return series->items[0].number;
+}
+
+void series_preprocessor(struct Series *s)
+{
+  // Parenthesis proximity multiplication
+  struct Item left, right;
+  struct Item mul;
+  mul.type = OPERATION;
+  mul.opcode = MULTIPLY_OPCODE;
+  for (int i = 1; i < s->length; i++)
+  {
+    left = s->items[i - 1];
+    right = s->items[i];
+
+    int need_mul = 0;
+    // 2(3) -> insert '*' between number and '('
+    if (left.type == NUMBER &&
+        right.type == OPERATION && right.opcode == OPEN_PARENTHESIS)
+    {
+      need_mul = 1;
+    }
+    // (2)3 -> insert '*' between ')' and number
+    else if (left.type == OPERATION && left.opcode == CLOSED_PARENTHESIS &&
+             right.type == NUMBER)
+    {
+      need_mul = 1;
+    }
+
+    if (need_mul)
+    {
+      // insert BETWEEN left (i-1) and right (i)
+      append_to_series(s, i, &mul, 1);
+
+      // skip past the inserted '*'
+      i++; // now at the token after 'right'
+      continue;
+    }
+  }
+}
+
+void parse_series_parentheses(struct Series *series)
 {
   // Step 1: find all parentheses and create & run their series, and mutate result in-memory
   // We calculate the deepest parentheses first, calc & mutate, and then go from there until there are no more left
+
   struct Series s;
   s.length = 0;
   struct Item item;
   int start_index = -1;
-  for (int i = 0; i < series.length; i++)
+  for (int i = 0; i < series->length; i++)
   {
-    item = series.items[i];
+    item = series->items[i];
     // If we are just working with normal strings
     if (item.type != OPERATION && start_index == -1)
     {
@@ -241,8 +362,8 @@ Number parse_series(struct Series series)
       if (item.opcode == CLOSED_PARENTHESIS)
       {
         item.type = NUMBER;
-        item.number = parse_series(s);                // Parse the nested series we created
-        splice_series(&series, start_index, i, item); // Splice it into the larger series
+        item.number = parse_series_arithmetic(&s);   // Parse the nested series we created
+        splice_series(series, start_index, i, item); // Splice it into the larger series
 
         start_index = -1;
         i = -1;       // Reset for loop (we use -1 because continue will add 1 to i)
@@ -255,52 +376,22 @@ Number parse_series(struct Series series)
     s.items[s.length] = item;
     s.length++;
   }
+}
 
-  // Step 2: run through each operation one-by-one, find the one with the highest score + earliest index, and run + mutate in-memory
-  int highest_score = -1;
-  int score;
-  int op_index = -1;
-  while (series.length > 1) // We keep going until we only have a single item left in the series (i.e. the resulting number), then we return it
-  {
-    for (int i = 0; i < series.length; i++)
-    {
-      item = series.items[i];
-      if (item.type != OPERATION)
-        continue;
-      score = get_score(item.opcode);
-      if (score > highest_score)
-      {
-        highest_score = score;
-        op_index = i;
-      }
-    }
+Number parse_series(struct Series *series)
+{
+  series_preprocessor(series);
+  // print_series(series); // For debugging
 
-    // If we have no operations left, we leave the while loop
-    if (op_index == -1)
-      break;
+  parse_series_parentheses(series);
 
-    // We compute the operation
-    OPCode opcode = series.items[op_index].opcode;
-    Number num1 = series.items[op_index - 1].number;
-    Number num2 = series.items[op_index + 1].number;
-    item.type = NUMBER;
-    item.number = execute(num1, num2, opcode);
-    // We splice the result in place of the expression
-    splice_series(&series, op_index - 1, op_index + 1, item);
-
-    // State adjustment
-    highest_score = -1; // Reset highest score
-    op_index = -1;      // Reset operation index
-  }
-
-  // Step 3: Return the final element of the series
-  return series.items[0].number;
+  return parse_series_arithmetic(series);
 }
 
 // String must be null-terminated
 Number parse_string(char *string)
 {
   struct Series s = create_series(string);
-  Number result = parse_series(s);
+  Number result = parse_series(&s);
   return result;
 }
