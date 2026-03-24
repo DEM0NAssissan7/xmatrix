@@ -6,9 +6,11 @@ CFLAGS = -Wall -Wextra -Oz
 LTO = NO
 
 EXTRA_C_SOURCES = \
-  main-ti84ce.c \
+  main.c \
   matrix.c \
   number.c \
-  calculator.c
+  calculator.c \
+  io.c \
+  interface.c
 
 include $(shell cedev-config --makefile)

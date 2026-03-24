@@ -1,4 +1,95 @@
 #include "matrix.h"
+#include <stdlib.h>
+
+static Number num_zero(void)
+{
+  return num_from_real_imaginary(0.0f, 0.0f);
+}
+
+static Number num_one(void)
+{
+  return num_from_real_imaginary(1.0f, 0.0f);
+}
+
+static Number num_negative_one(void)
+{
+  return num_from_real_imaginary(-1.0f, 0.0f);
+}
+
+static int is_zero(Number n)
+{
+  return n.magnitude == 0.0f;
+}
+
+static int matrix_resize(Matrix *m, int rows, int cols)
+{
+  Number *new_numbers = (Number *)realloc(m->numbers, rows * cols * sizeof(Number));
+  if (new_numbers == NULL && rows * cols > 0)
+  {
+    return 0;
+  }
+
+  m->numbers = new_numbers;
+  m->rows = rows;
+  m->columns = cols;
+  return 1;
+}
+
+static void swap_rows(Matrix *m, int row_a, int row_b)
+{
+  if (row_a == row_b)
+    return;
+
+  for (int col = 0; col < m->columns; col++)
+  {
+    Number temp = get(m, row_a, col);
+    set(m, row_a, col, get(m, row_b, col));
+    set(m, row_b, col, temp);
+  }
+}
+
+static int find_pivot_row(const Matrix *m, int start_row, int col)
+{
+  int pivot_row = -1;
+  float best_mag = 0.0f;
+
+  for (int row = start_row; row < m->rows; row++)
+  {
+    Number value = get(m, row, col);
+    if (value.magnitude > best_mag)
+    {
+      best_mag = value.magnitude;
+      pivot_row = row;
+    }
+  }
+
+  return pivot_row;
+}
+
+static void set_identity(Matrix *m)
+{
+  for (int i = 0; i < m->rows; i++)
+  {
+    for (int j = 0; j < m->columns; j++)
+    {
+      set(m, i, j, (i == j) ? num_one() : num_zero());
+    }
+  }
+}
+
+static int copy_matrix(const Matrix *src, Matrix *dst)
+{
+  if (!matrix_resize(dst, src->rows, src->columns))
+    return 0;
+
+  int count = src->rows * src->columns;
+  for (int i = 0; i < count; i++)
+  {
+    dst->numbers[i] = src->numbers[i];
+  }
+
+  return 1;
+}
 
 Number get(const Matrix *m, int row, int col)
 {
@@ -10,23 +101,46 @@ void set(Matrix *m, int row, int col, Number value)
   m->numbers[row * m->columns + col] = value;
 }
 
+Matrix create_matrix(int rows, int cols)
+{
+  Matrix m;
+  m.rows = rows;
+  m.columns = cols;
+  m.numbers = NULL;
+
+  if (rows > 0 && cols > 0)
+  {
+    m.numbers = (Number *)malloc(rows * cols * sizeof(Number));
+  }
+
+  return m;
+}
+
+void free_matrix(Matrix *m)
+{
+  free(m->numbers);
+  m->numbers = NULL;
+  m->rows = 0;
+  m->columns = 0;
+}
+
 int matrix_multiply(const Matrix *a, const Matrix *b, Matrix *result)
 {
   if (a->columns != b->rows)
   {
-    result->rows = 0;
-    result->columns = 0;
     return 0;
   }
 
-  result->rows = a->rows;
-  result->columns = b->columns;
+  if (!matrix_resize(result, a->rows, b->columns))
+  {
+    return 0;
+  }
 
   for (int i = 0; i < result->rows; i++)
   {
     for (int j = 0; j < result->columns; j++)
     {
-      Number sum = num_from_real_imaginary(0, 0);
+      Number sum = num_zero();
 
       for (int k = 0; k < a->columns; k++)
       {
@@ -41,126 +155,169 @@ int matrix_multiply(const Matrix *a, const Matrix *b, Matrix *result)
   return 1;
 }
 
-static void const_multiply(Number scalar, const Matrix *m, Matrix *new_matrix)
-{
-  new_matrix->rows = m->rows;
-  new_matrix->columns = m->columns;
-
-  for (int i = 0; i < m->rows; i++)
-  {
-    for (int j = 0; j < m->columns; j++)
-    {
-      Number old_value = get(m, i, j);
-      Number new_value = multiply(old_value, scalar);
-      set(new_matrix, i, j, new_value);
-    }
-  }
-}
-
-static Number determinant_2x2(const Matrix *m)
-{
-  Number a = get(m, 0, 0);
-  Number b = get(m, 0, 1);
-  Number c = get(m, 1, 0);
-  Number d = get(m, 1, 1);
-
-  return subtract(multiply(a, d), multiply(b, c));
-}
-
-static void matrix_minor(const Matrix *m, int remove_row, int remove_col, Matrix *minor)
-{
-  minor->rows = m->rows - 1;
-  minor->columns = m->columns - 1;
-
-  int dst = 0;
-  for (int i = 0; i < m->rows; i++)
-  {
-    if (i == remove_row)
-      continue;
-
-    for (int j = 0; j < m->columns; j++)
-    {
-      if (j == remove_col)
-        continue;
-
-      minor->numbers[dst++] = get(m, i, j);
-    }
-  }
-}
-
 Number determinant(const Matrix *m)
 {
   if (m->rows != m->columns)
   {
-    return num_from_real_imaginary(0, 0);
+    return num_zero();
   }
 
-  if (m->rows == 1)
+  if (m->rows == 0)
   {
-    return get(m, 0, 0);
+    return num_zero();
   }
 
-  if (m->rows == 2)
+  Matrix temp = create_matrix(m->rows, m->columns);
+  if (temp.numbers == NULL)
   {
-    return determinant_2x2(m);
+    return num_zero();
   }
 
-  Number result = num_from_real_imaginary(0, 0);
-
-  for (int col = 0; col < m->columns; col++)
+  for (int i = 0; i < m->rows * m->columns; i++)
   {
-    Matrix minor;
-    matrix_minor(m, 0, col, &minor);
+    temp.numbers[i] = m->numbers[i];
+  }
 
-    Number term = multiply(get(m, 0, col), determinant(&minor));
+  Number det = num_one();
+  int sign = 1;
 
-    if (col % 2 == 1)
+  for (int col = 0; col < temp.columns; col++)
+  {
+    int pivot_row = find_pivot_row(&temp, col, col);
+    if (pivot_row == -1 || is_zero(get(&temp, pivot_row, col)))
     {
-      term = multiply(term, num_from_real_imaginary(-1, 0));
+      free_matrix(&temp);
+      return num_zero();
     }
 
-    result = add(result, term);
+    if (pivot_row != col)
+    {
+      swap_rows(&temp, pivot_row, col);
+      sign = -sign;
+    }
+
+    Number pivot = get(&temp, col, col);
+
+    for (int row = col + 1; row < temp.rows; row++)
+    {
+      Number below = get(&temp, row, col);
+      if (is_zero(below))
+        continue;
+
+      Number factor = divide(below, pivot);
+
+      for (int k = col; k < temp.columns; k++)
+      {
+        Number value = subtract(
+            get(&temp, row, k),
+            multiply(factor, get(&temp, col, k)));
+        set(&temp, row, k, value);
+      }
+    }
+
+    det = multiply(det, pivot);
   }
 
-  return result;
+  if (sign < 0)
+  {
+    det = multiply(det, num_negative_one());
+  }
+
+  free_matrix(&temp);
+  return det;
 }
 
 int inverse(const Matrix *m, Matrix *result)
 {
   if (m->rows != m->columns)
-    return 0;
-
-  Number d = determinant(m);
-  if (d.magnitude == 0)
-    return 0;
-
-  if (m->rows == 1)
   {
-    result->rows = 1;
-    result->columns = 1;
-    set(result, 0, 0, divide(num_from_real_imaginary(1, 0), get(m, 0, 0)));
-    return 1;
+    return 0;
   }
 
-  Matrix adj;
-  adj.rows = m->rows;
-  adj.columns = m->columns;
-
-  for (int i = 0; i < m->rows; i++)
+  int n = m->rows;
+  if (n <= 0)
   {
-    for (int j = 0; j < m->columns; j++)
+    return 0;
+  }
+
+  Matrix left = create_matrix(n, n);
+  Matrix right = create_matrix(n, n);
+
+  if (left.numbers == NULL || right.numbers == NULL)
+  {
+    free_matrix(&left);
+    free_matrix(&right);
+    return 0;
+  }
+
+  if (!copy_matrix(m, &left))
+  {
+    free_matrix(&left);
+    free_matrix(&right);
+    return 0;
+  }
+
+  set_identity(&right);
+
+  for (int col = 0; col < n; col++)
+  {
+    int pivot_row = find_pivot_row(&left, col, col);
+    if (pivot_row == -1 || is_zero(get(&left, pivot_row, col)))
     {
-      Matrix minor;
-      matrix_minor(m, i, j, &minor);
+      free_matrix(&left);
+      free_matrix(&right);
+      return 0;
+    }
 
-      Number cofactor = determinant(&minor);
-      if ((i + j) % 2 == 1)
-        cofactor = multiply(cofactor, num_from_real_imaginary(-1, 0));
+    if (pivot_row != col)
+    {
+      swap_rows(&left, pivot_row, col);
+      swap_rows(&right, pivot_row, col);
+    }
 
-      set(&adj, j, i, cofactor);
+    Number pivot = get(&left, col, col);
+
+    for (int j = 0; j < n; j++)
+    {
+      set(&left, col, j, divide(get(&left, col, j), pivot));
+      set(&right, col, j, divide(get(&right, col, j), pivot));
+    }
+
+    for (int row = 0; row < n; row++)
+    {
+      if (row == col)
+        continue;
+
+      Number factor = get(&left, row, col);
+      if (is_zero(factor))
+        continue;
+
+      for (int j = 0; j < n; j++)
+      {
+        set(&left, row, j,
+            subtract(get(&left, row, j),
+                     multiply(factor, get(&left, col, j))));
+
+        set(&right, row, j,
+            subtract(get(&right, row, j),
+                     multiply(factor, get(&right, col, j))));
+      }
     }
   }
 
-  const_multiply(divide(num_from_real_imaginary(1, 0), d), &adj, result);
+  if (!matrix_resize(result, n, n))
+  {
+    free_matrix(&left);
+    free_matrix(&right);
+    return 0;
+  }
+
+  for (int i = 0; i < n * n; i++)
+  {
+    result->numbers[i] = right.numbers[i];
+  }
+
+  free_matrix(&left);
+  free_matrix(&right);
   return 1;
 }

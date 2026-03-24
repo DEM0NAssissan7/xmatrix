@@ -3,11 +3,9 @@
 
 #include "number.h"
 
-#define MAX_ARRAY_NUMS 64 // or whatever you defined
-
 typedef struct Matrix
 {
-  Number numbers[MAX_ARRAY_NUMS];
+  Number *numbers;
   int rows;
   int columns;
 } Matrix;
@@ -24,5 +22,9 @@ Number determinant(const Matrix *m);
 
 // Inverse
 int inverse(const Matrix *m, Matrix *result);
+
+// Managment
+Matrix create_matrix(int rows, int cols);
+void free_matrix(Matrix *m);
 
 #endif
