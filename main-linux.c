@@ -44,17 +44,12 @@ void print_matrix(Matrix m, char *name)
   {
     for (int j = 0; j < m.columns; j++)
     {
-      Number n = get(m, i, j);
+      Number n = get(&m, i, j);
 
       printf("%8.2f%+.2fi<%.2f@%.2f°>", n.real, n.imaginary, n.magnitude, n.angle * (180 / PI));
     }
     printf("\n");
   }
-}
-
-int matrix_is_valid(Matrix m)
-{
-  return m.rows > 0 && m.columns > 0;
 }
 
 int main()
@@ -90,7 +85,8 @@ int main()
     {
       if (A.columns == B.rows)
       {
-        Matrix C = matrix_multiply(A, B);
+        Matrix C;
+        matrix_multiply(&A, &B, &C);
         print_matrix(C, "A * B");
       }
       else
@@ -102,7 +98,7 @@ int main()
     {
       if (A.rows == A.columns)
       {
-        Number d = determinant(A);
+        Number d = determinant(&A);
         printf("det(A) = %.2f%+.2fi\n", d.real, d.imaginary);
       }
       else
@@ -114,7 +110,7 @@ int main()
     {
       if (B.rows == B.columns)
       {
-        Number d = determinant(B);
+        Number d = determinant(&B);
         printf("det(B) = %.2f%+.2fi\n", d.real, d.imaginary);
       }
       else
@@ -132,9 +128,8 @@ int main()
     }
     else if (choice == 7)
     {
-      Matrix A_inv = inverse(A);
-
-      if (!matrix_is_valid(A_inv))
+      Matrix A_inv;
+      if (!inverse(&A, &A_inv))
       {
         printf("A is not invertible.\n");
       }
@@ -144,15 +139,15 @@ int main()
       }
       else
       {
-        Matrix C = matrix_multiply(A_inv, B);
+        Matrix C;
+        matrix_multiply(&A_inv, &B, &C);
         print_matrix(C, "A^-1 * B");
       }
     }
     else if (choice == 8)
     {
-      Matrix B_inv = inverse(B);
-
-      if (!matrix_is_valid(B_inv))
+      Matrix B_inv;
+      if (!inverse(&B, &B_inv))
       {
         printf("B is not invertible.\n");
       }
@@ -162,7 +157,8 @@ int main()
       }
       else
       {
-        Matrix C = matrix_multiply(A, B_inv);
+        Matrix C;
+        matrix_multiply(&A, &B_inv, &C);
         print_matrix(C, "A * B^-1");
       }
     }

@@ -2,7 +2,7 @@ CC=gcc
 CFLAGS = -Wall -Wextra -lm
 BUILD_DIR = build
 
-all: linux
+all: linux ti84ce
 
 main: matrix.c matrix.h number.c number.h calculator.c calculator.h
 	$(CC) $(CFLAGS) -c matrix.c
@@ -13,5 +13,9 @@ linux: main main-linux.c
 	$(CC) $(CFLAGS) -c main-linux.c
 	$(CC) $(CFLAGS) -o xmatrix-linux main-linux.o matrix.o number.o calculator.o
 
+ti84ce:
+	./install_cedev.sh
+
 clean:
 	rm -f *.o xmatrix-linux
+	@$(MAKE) -f Makefile.ti84ce clean >/dev/null 2>&1 || true

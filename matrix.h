@@ -13,17 +13,16 @@ typedef struct Matrix
 } Matrix;
 
 // Helpers
-Number get(Matrix m, int row, int col);
+Number get(const Matrix *m, int row, int col);
 void set(Matrix *m, int row, int col, Number value);
 
 // Basic operations
-Matrix matrix_multiply(Matrix a, Matrix b);
-Matrix const_multiply(Number a, Matrix m);
+int matrix_multiply(const Matrix *a, const Matrix *b, Matrix *result);
 
 // Determinant-related
-Number determinant(Matrix m);
+Number determinant(const Matrix *m);
 
 // Inverse
-Matrix inverse(Matrix m);
+int inverse(const Matrix *m, Matrix *result);
 
 #endif

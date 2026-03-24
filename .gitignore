@@ -1,2 +1,5 @@
 *.o
 xmatrix-linux
+CEdev
+obj
+bin

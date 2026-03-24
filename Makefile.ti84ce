@@ -1,0 +1,14 @@
+NAME = XMATRIX
+DESCRIPTION = "Matrix operations"
+COMPRESSED = NO
+ARCHIVED = NO
+CFLAGS = -Wall -Wextra -Oz
+LTO = NO
+
+EXTRA_C_SOURCES = \
+  main-ti84ce.c \
+  matrix.c \
+  number.c \
+  calculator.c
+
+include $(shell cedev-config --makefile)

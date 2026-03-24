@@ -1,68 +1,63 @@
 #include "matrix.h"
 
-// Helpers
-Number get(Matrix m, int row, int col)
+Number get(const Matrix *m, int row, int col)
 {
-  return m.numbers[row * m.columns + col];
+  return m->numbers[row * m->columns + col];
 }
+
 void set(Matrix *m, int row, int col, Number value)
 {
   m->numbers[row * m->columns + col] = value;
 }
 
-Matrix matrix_multiply(Matrix a, Matrix b)
+int matrix_multiply(const Matrix *a, const Matrix *b, Matrix *result)
 {
-  Matrix result;
-
-  if (a.columns != b.rows)
+  if (a->columns != b->rows)
   {
-    result.rows = 0;
-    result.columns = 0;
-    return result;
+    result->rows = 0;
+    result->columns = 0;
+    return 0;
   }
 
-  result.rows = a.rows;
-  result.columns = b.columns;
+  result->rows = a->rows;
+  result->columns = b->columns;
 
-  for (int i = 0; i < result.rows; i++)
+  for (int i = 0; i < result->rows; i++)
   {
-    for (int j = 0; j < result.columns; j++)
+    for (int j = 0; j < result->columns; j++)
     {
       Number sum = num_from_real_imaginary(0, 0);
 
-      for (int k = 0; k < a.columns; k++)
+      for (int k = 0; k < a->columns; k++)
       {
         Number product = multiply(get(a, i, k), get(b, k, j));
         sum = add(sum, product);
       }
 
-      set(&result, i, j, sum);
+      set(result, i, j, sum);
     }
   }
 
-  return result;
+  return 1;
 }
-Matrix const_multiply(Number a, Matrix m)
+
+static void const_multiply(Number scalar, const Matrix *m, Matrix *new_matrix)
 {
-  Matrix new_matrix;
-  new_matrix.rows = m.rows;
-  new_matrix.columns = m.columns;
-  Number old;
-  Number new;
-  for (int i = 0; i < m.rows; i++)
+  new_matrix->rows = m->rows;
+  new_matrix->columns = m->columns;
+
+  for (int i = 0; i < m->rows; i++)
   {
-    for (int j = 0; j < m.columns; j++)
+    for (int j = 0; j < m->columns; j++)
     {
-      old = get(m, i, j);
-      new = multiply(old, a);
-      set(&new_matrix, i, j, new);
+      Number old_value = get(m, i, j);
+      Number new_value = multiply(old_value, scalar);
+      set(new_matrix, i, j, new_value);
     }
   }
-  return new_matrix;
 }
 
-// a: left, b: right, 0: top, 1: bottom
-Number determinant_2x2(Matrix m)
+static Number determinant_2x2(const Matrix *m)
 {
   Number a = get(m, 0, 0);
   Number b = get(m, 0, 1);
@@ -72,53 +67,52 @@ Number determinant_2x2(Matrix m)
   return subtract(multiply(a, d), multiply(b, c));
 }
 
-Matrix matrix_minor(Matrix m, int remove_row, int remove_col)
+static void matrix_minor(const Matrix *m, int remove_row, int remove_col, Matrix *minor)
 {
-  Matrix minor;
-  minor.rows = m.rows - 1;
-  minor.columns = m.columns - 1;
+  minor->rows = m->rows - 1;
+  minor->columns = m->columns - 1;
 
   int dst = 0;
-  for (int i = 0; i < m.rows; i++)
+  for (int i = 0; i < m->rows; i++)
   {
     if (i == remove_row)
       continue;
 
-    for (int j = 0; j < m.columns; j++)
+    for (int j = 0; j < m->columns; j++)
     {
       if (j == remove_col)
         continue;
 
-      minor.numbers[dst++] = get(m, i, j);
+      minor->numbers[dst++] = get(m, i, j);
     }
   }
-
-  return minor;
 }
 
-Number determinant(Matrix m)
+Number determinant(const Matrix *m)
 {
-  if (m.rows != m.columns)
+  if (m->rows != m->columns)
   {
     return num_from_real_imaginary(0, 0);
   }
 
-  if (m.rows == 1)
+  if (m->rows == 1)
   {
     return get(m, 0, 0);
   }
 
-  if (m.rows == 2)
+  if (m->rows == 2)
   {
     return determinant_2x2(m);
   }
 
   Number result = num_from_real_imaginary(0, 0);
 
-  for (int col = 0; col < m.columns; col++)
+  for (int col = 0; col < m->columns; col++)
   {
-    Number term = multiply(get(m, 0, col),
-                           determinant(matrix_minor(m, 0, col)));
+    Matrix minor;
+    matrix_minor(m, 0, col, &minor);
+
+    Number term = multiply(get(m, 0, col), determinant(&minor));
 
     if (col % 2 == 1)
     {
@@ -131,38 +125,35 @@ Number determinant(Matrix m)
   return result;
 }
 
-Matrix inverse(Matrix m)
+int inverse(const Matrix *m, Matrix *result)
 {
-  Matrix invalid;
-  invalid.rows = 0;
-  invalid.columns = 0;
-
-  if (m.rows != m.columns)
-    return invalid;
+  if (m->rows != m->columns)
+    return 0;
 
   Number d = determinant(m);
   if (d.magnitude == 0)
-    return invalid;
+    return 0;
 
-  if (m.rows == 1)
+  if (m->rows == 1)
   {
-    Matrix result;
-    result.rows = 1;
-    result.columns = 1;
-    set(&result, 0, 0, divide(num_from_real_imaginary(1, 0), get(m, 0, 0)));
-    return result;
+    result->rows = 1;
+    result->columns = 1;
+    set(result, 0, 0, divide(num_from_real_imaginary(1, 0), get(m, 0, 0)));
+    return 1;
   }
 
   Matrix adj;
-  adj.rows = m.rows;
-  adj.columns = m.columns;
+  adj.rows = m->rows;
+  adj.columns = m->columns;
 
-  for (int i = 0; i < m.rows; i++)
+  for (int i = 0; i < m->rows; i++)
   {
-    for (int j = 0; j < m.columns; j++)
+    for (int j = 0; j < m->columns; j++)
     {
-      Number cofactor = determinant(matrix_minor(m, i, j));
+      Matrix minor;
+      matrix_minor(m, i, j, &minor);
 
+      Number cofactor = determinant(&minor);
       if ((i + j) % 2 == 1)
         cofactor = multiply(cofactor, num_from_real_imaginary(-1, 0));
 
@@ -170,5 +161,6 @@ Matrix inverse(Matrix m)
     }
   }
 
-  return const_multiply(divide(num_from_real_imaginary(1, 0), d), adj);
+  const_multiply(divide(num_from_real_imaginary(1, 0), d), &adj, result);
+  return 1;
 }
