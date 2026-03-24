@@ -1,5 +1,5 @@
-NAME = XMATRIX
-DESCRIPTION = "Matrix operations"
+NAME = iCalc
+DESCRIPTION = "A better calculator for engineers"
 COMPRESSED = NO
 ARCHIVED = NO
 CFLAGS = -Wall -Wextra -Oz

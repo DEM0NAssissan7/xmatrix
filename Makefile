@@ -11,11 +11,11 @@ main: matrix.c matrix.h number.c number.h calculator.c calculator.h
 
 linux: main main-linux.c
 	$(CC) $(CFLAGS) -c main-linux.c
-	$(CC) $(CFLAGS) -o xmatrix-linux main-linux.o matrix.o number.o calculator.o
+	$(CC) $(CFLAGS) -o icalc-linux main-linux.o matrix.o number.o calculator.o
 
 ti84ce:
 	./install_cedev.sh
 
 clean:
-	rm -f *.o xmatrix-linux
+	rm -f *.o icalc-linux
 	@$(MAKE) -f Makefile.ti84ce clean >/dev/null 2>&1 || true
