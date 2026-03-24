@@ -4,9 +4,6 @@
 
 #include "number.h"
 
-#define MAX_ITEMS 32
-#define MAX_NUMBER_LENGTH 32
-
 // Types
 typedef char OPCode;
 typedef char ItemType;
@@ -20,8 +17,9 @@ struct Item
 };
 struct Series
 {
-  struct Item items[MAX_ITEMS]; // Must be a memory allocated pointer or a valid stack pointer
+  struct Item *items; // Must be a memory allocated pointer or a valid stack pointer
   int length;
+  int allocated_items;
 };
 
 // Functions

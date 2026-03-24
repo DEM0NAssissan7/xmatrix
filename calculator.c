@@ -135,15 +135,33 @@ Number execute(Number num1, Number num2, OPCode opcode)
   return num_from_real_imaginary(0, 0); // Unreachable
 }
 
+void realloc_series(struct Series *s, int new_length)
+{
+  if (new_length > s->allocated_items)
+  {
+    s->allocated_items = new_length * 2;
+    s->items = realloc(s->items, s->allocated_items * sizeof(struct Item));
+  }
+}
+
+void add_item_to_series(struct Series *s, struct Item item)
+{
+  realloc_series(s, s->length + 1);
+  s->items[s->length++] = item;
+}
+
 struct Series create_series(char *string)
 {
+  int length = strlen(string);
+
   struct Series s;
   s.length = 0;
+  s.allocated_items = length;
+  s.items = malloc(length * sizeof(struct Item)); // Take a worst-case guess at how much memory to allocate initially (helps w/ fragmentation)
 
-  int length = strlen(string);
   char c = DELIMITER;
   char previous_c = DELIMITER;
-  char str[MAX_NUMBER_LENGTH];
+  char str[length]; // Allocate a stack array of the string size to always have a nice buffer in place
   int string_index = 0;
 
   struct Item item;
@@ -165,8 +183,7 @@ struct Series create_series(char *string)
 
       item.type = NUMBER;
       item.number = num_from_token(str);
-      s.items[s.length] = item;
-      s.length++;
+      s.items[s.length++] = item;
 
       string_index = 0;
 
@@ -178,19 +195,25 @@ struct Series create_series(char *string)
 
     if (opcode == INVALID_OPCODE) // If this is not an operation
     {
-      str[string_index] = c;
-      string_index++;
+      str[string_index++] = c;
     }
     else
     {
       item.type = OPERATION;
       item.opcode = opcode;
-      s.items[s.length] = item;
-      s.length++;
+      add_item_to_series(&s, item);
     }
   }
 
+  // Now allocate the resulting series appropriately to the actual size
+  s.items = realloc(s.items, s.length * sizeof(struct Item));
+  s.allocated_items = s.length;
   return s;
+}
+
+void free_series(struct Series *s)
+{
+  free(s->items);
 }
 
 void splice_series(struct Series *s, int start_index, int end_index, struct Item replacement)
@@ -216,18 +239,21 @@ void splice_series(struct Series *s, int start_index, int end_index, struct Item
     s->items[start_index + i] = s->items[end_index + i];
   }
 
-  // We modify the length to fit the new one
+  // We reduce the length to fit the new one
   s->length -= end_index - start_index;
+  // Note: We do not reallocate so that we keep a nice reasonable buffer. The helpers deal with if it ends up expanding in the future
 }
 
 void append_to_series(struct Series *s, int index, struct Item *replacements, int count)
 {
-  // Shift over elements
+  const int new_length = s->length + count;
+  realloc_series(s, new_length);
+  // Shift over elements (to the right)
   for (int i = s->length - 1; i >= index; i--)
   {
     s->items[i + count] = s->items[i];
   }
-  s->length += count;
+  s->length = new_length;
 
   for (int i = 0; i < count; i++)
   {
@@ -357,6 +383,8 @@ void parse_series_parentheses(struct Series *series)
   // We calculate the deepest parentheses first, calc & mutate, and then go from there until there are no more left
 
   struct Series s;
+  s.items = malloc(series->length * sizeof(struct Item)); // Allocate the absolute max number of items that can fit
+  s.allocated_items = series->length;
   s.length = 0;
   struct Item item;
   int start_index = -1;
@@ -395,9 +423,9 @@ void parse_series_parentheses(struct Series *series)
     }
 
     // Finally, add the item to the nested series
-    s.items[s.length] = item;
-    s.length++;
+    add_item_to_series(&s, item);
   }
+  free_series(&s);
 }
 
 Number parse_series(struct Series *series)
@@ -415,5 +443,6 @@ Number parse_string(char *string)
 {
   struct Series s = create_series(string);
   Number result = parse_series(&s);
+  free_series(&s);
   return result;
 }
