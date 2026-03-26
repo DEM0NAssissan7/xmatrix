@@ -132,7 +132,7 @@ Number execute(Number num1, Number num2, OPCode opcode)
   case ANGLE_OPCODE:
     return num_from_mag_angle(num1.real, num2.real * DEG_TO_RAD);
   }
-  return num_from_real_imaginary(0, 0); // Unreachable
+  return invalid_number(); // Unreachable
 }
 
 void realloc_series(struct Series *s, int new_length)
