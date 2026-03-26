@@ -17,6 +17,7 @@
 #define MULTIPLY_OPCODE 2
 #define DIVIDE_OPCODE 3
 #define ANGLE_OPCODE 4
+#define EXPONENT_OPCODE 5
 
 // Parentheses
 #define OPEN_PARENTHESIS 10
@@ -42,8 +43,10 @@ get_opcode(char c)
     return MULTIPLY_OPCODE;
   case '/':
     return DIVIDE_OPCODE;
-  case ':':
+  case '@':
     return ANGLE_OPCODE;
+  case '^':
+    return EXPONENT_OPCODE;
   case '(':
     return OPEN_PARENTHESIS;
   case ')':
@@ -66,8 +69,10 @@ int get_score(OPCode o)
   case MULTIPLY_OPCODE:
   case DIVIDE_OPCODE:
     return 1;
-  case ANGLE_OPCODE:
+  case EXPONENT_OPCODE:
     return 2;
+  case ANGLE_OPCODE:
+    return 4;
   }
   return -1; // Default
 }
@@ -131,6 +136,8 @@ Number execute(Number num1, Number num2, OPCode opcode)
     return divide(num1, num2);
   case ANGLE_OPCODE:
     return num_from_mag_angle(num1.real, num2.real * DEG_TO_RAD);
+  case EXPONENT_OPCODE:
+    return exponentiate(num1, num2);
   }
   return invalid_number(); // Unreachable
 }

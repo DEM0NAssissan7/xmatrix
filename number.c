@@ -79,3 +79,12 @@ Number divide(Number numerator, Number denominator)
   float angle = numerator.angle - denominator.angle;
   return num_from_mag_angle(magnitude, angle);
 }
+
+Number exponentiate(Number base, Number power)
+{
+  if (has_invalid(base, power))
+    return invalid_number();
+  float magnitude = pow(base.magnitude, power.real);
+  float angle = power.real * base.angle;
+  return num_from_mag_angle(magnitude, angle);
+}

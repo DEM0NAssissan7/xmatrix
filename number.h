@@ -24,4 +24,6 @@ Number multiply(Number a, Number b);
 
 Number divide(Number numerator, Number denominator);
 
+Number exponentiate(Number base, Number power);
+
 #endif
